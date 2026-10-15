@@ -3,18 +3,6 @@ import Synchronization
 import Testing
 @testable import StillHereCore
 
-/// Lists `entry` until the fake process has been signalled to death.
-struct DyingDetector: ServerDetector {
-    let entry: ServerEntry
-    let system: FakeSignalSystem
-
-    func scan(config: IgnoreConfiguration) async throws -> [ServerEntry] {
-        system.isAlive(entry.rootPID) ? [entry] : []
-    }
-
-    func probe(_ entry: ServerEntry) async -> ProbeResult { ProbeResult(host: ProbeHosts.ipv4, status: 200) }
-}
-
 @Suite struct ServerStopperTests {
     let entry = SampleServers.vite
     var start: Date { entry.process!.startTime! }
@@ -22,7 +10,6 @@ struct DyingDetector: ServerDetector {
     func stopper(_ system: FakeSignalSystem) -> ServerStopper {
         ServerStopper(
             signaller: ProcessSignaller(system: system),
-            detector: DyingDetector(entry: entry, system: system),
             exitTimeout: .milliseconds(300)
         )
     }
@@ -36,7 +23,7 @@ struct DyingDetector: ServerDetector {
     @Test func survivorIsNotKilledWithoutForce() async {
         let system = FakeSignalSystem(start: start)
         system.state.withLock { $0.dieOnSignal = false }
-        #expect(await stopper(system).stop(entry, force: false) == .stillRunning)
+        #expect(await stopper(system).stop(entry, force: false) == .stillRunning(after: .terminate))
         #expect(system.sent == [SIGTERM])
     }
 
@@ -45,19 +32,20 @@ struct DyingDetector: ServerDetector {
         system.state.withLock { $0.dieOnSignal = false }
         let result = await stopper(system).stop(entry, force: true)
         #expect(system.sent == [SIGTERM, SIGKILL])
-        #expect(result == .failed("PID \(entry.rootPID) survived SIGKILL"))
+        #expect(result == .stillRunning(after: .kill))
     }
 
     @Test func uninspectableSurvivorIsNotReportedStopped() async {
         let system = FakeSignalSystem(start: start)
-        system.state.withLock { $0.dieOnSignal = false }
+        system.state.withLock {
+            $0.dieOnSignal = false
+            $0.lookupAfterSignal = .denied
+        }
         let stopper = ServerStopper(
             signaller: ProcessSignaller(system: system),
-            detector: DyingDetector(entry: entry, system: system),
             exitTimeout: .milliseconds(300)
         )
-        // Sending succeeds; afterwards the process can no longer be inspected.
-        Task { try? await Task.sleep(for: .milliseconds(100)); system.state.withLock { $0.lookup = .denied } }
+        // Sending succeeds; the next identity lookup is denied.
         guard case .failed = await stopper.stop(entry, force: false) else { Issue.record("expected failure"); return }
     }
 

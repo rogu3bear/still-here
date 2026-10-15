@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 import Observation
 import StillHereCore
@@ -35,26 +34,16 @@ final class StopFlow {
 
     private(set) var phases: [Key: Phase] = [:]
 
-    @ObservationIgnored private let detector: any ServerDetector
-    @ObservationIgnored private let signaller: ProcessSignaller
-    @ObservationIgnored private let configuration: () -> IgnoreConfiguration
-    @ObservationIgnored private let exitTimeout: Duration
-    @ObservationIgnored private let pollInterval: Duration
-    /// Called after a server stopped (or its port changed hands), so the list can refresh.
+    @ObservationIgnored private let stopper: ServerStopper
+    /// Called only after core completion confirms the original identity is gone.
     @ObservationIgnored var onStopped: (() async -> Void)?
 
     init(
-        detector: any ServerDetector,
         signaller: ProcessSignaller,
-        configuration: @escaping () -> IgnoreConfiguration,
         exitTimeout: Duration = .seconds(3),
         pollInterval: Duration = .milliseconds(250)
     ) {
-        self.detector = detector
-        self.signaller = signaller
-        self.configuration = configuration
-        self.exitTimeout = exitTimeout
-        self.pollInterval = pollInterval
+        stopper = ServerStopper(signaller: signaller, exitTimeout: exitTimeout, pollInterval: pollInterval)
     }
 
     func phase(for entry: ServerEntry) -> Phase? { phases[entry.probeKey] }
@@ -86,81 +75,35 @@ final class StopFlow {
         if kept.count != phases.count { phases = kept }
     }
 
-    /// Step 2: SIGTERM, then wait for the process to exit and the port to close.
-    func confirmTerminate(_ entry: ServerEntry) async {
+    /// Step 2: SIGTERM, then reconcile the captured process identity in the core.
+    @discardableResult
+    func confirmTerminate(_ entry: ServerEntry) async -> ServerStopper.Result? {
         let key = entry.probeKey
-        guard case .confirmTerminate(let target) = phases[key] else { return }
+        guard case .confirmTerminate(let target) = phases[key] else { return nil }
         phases[key] = .terminating(target)
-        await signalAndWait(key: key, target: target, kill: false)
+        return await signalAndWait(key: key, target: target, kill: false)
     }
 
     /// Step 3 (only after `stillRunning`): SIGKILL the same verified PID.
-    func confirmForceKill(_ entry: ServerEntry) async {
+    @discardableResult
+    func confirmForceKill(_ entry: ServerEntry) async -> ServerStopper.Result? {
         let key = entry.probeKey
-        guard case .stillRunning(let target) = phases[key] else { return }
+        guard case .stillRunning(let target) = phases[key] else { return nil }
         phases[key] = .killing(target)
-        await signalAndWait(key: key, target: target, kill: true)
+        return await signalAndWait(key: key, target: target, kill: true)
     }
 
-    private func signalAndWait(key: Key, target: Target, kill: Bool) async {
-        let outcome = await Self.send(kill: kill, to: target, using: signaller)
-        switch outcome {
-        case .sent, .notFound:
-            break // notFound: it already exited; confirm the port closed below.
-        case .pidReused:
-            phases[key] = .failed("PID \(target.pid) now belongs to a different process. Nothing was sent; refresh.")
-            return
-        case .permissionDenied:
-            phases[key] = .failed("Permission denied signalling PID \(target.pid).")
-            return
-        case .refused(let reason):
-            phases[key] = .failed(Self.describe(reason, pid: target.pid))
-            return
-        case .failed(let code):
-            phases[key] = .failed("Couldn't signal PID \(target.pid): \(String(cString: strerror(code))).")
-            return
-        }
-
-        let isListening = Self.listeningCheck(port: key.port, detector: detector, config: configuration())
-        let stopped = await signaller.waitForExit(
-            pid: target.pid, timeout: exitTimeout, pollInterval: pollInterval, isListening: isListening
-        )
-        if !stopped, await Self.verify(target, using: signaller) == .same {
+    private func signalAndWait(key: Key, target: Target, kill: Bool) async -> ServerStopper.Result {
+        let result = await (kill ? stopper.forceKill(target) : stopper.terminate(target))
+        switch result {
+        case .stopped:
+            phases[key] = nil
+            await onStopped?()
+        case .stillRunning(after: .terminate):
             phases[key] = .stillRunning(target)
-            return
+        case .stillRunning(after: .kill), .notStoppable, .failed, .cancelled:
+            phases[key] = .failed(result.message)
         }
-        // Stopped, or the original process exited and something else now holds the port:
-        // that is a different server, never a SIGKILL candidate. Refresh to show it.
-        phases[key] = nil
-        await onStopped?()
-    }
-
-    static func describe(_ reason: SignalRefusal, pid: Int32) -> String {
-        switch reason {
-        case .protectedPID: "PID \(pid) is a protected system process; nothing was sent."
-        case .ownProcess: "PID \(pid) is Still Here itself; nothing was sent."
-        case .otherUser: "PID \(pid) belongs to another user; nothing was sent."
-        }
-    }
-
-    /// `kill(2)` and the libproc identity check run off the main actor.
-    @concurrent
-    nonisolated private static func send(kill: Bool, to target: Target, using signaller: ProcessSignaller) async -> SignalOutcome {
-        kill ? signaller.forceKill(target) : signaller.terminate(target)
-    }
-
-    @concurrent
-    nonisolated private static func verify(_ target: Target, using signaller: ProcessSignaller) async -> TargetVerification {
-        signaller.verify(target)
-    }
-
-    /// A fresh listener scan, off the main actor. A failed scan counts as still listening.
-    nonisolated private static func listeningCheck(
-        port: Int, detector: any ServerDetector, config: IgnoreConfiguration
-    ) -> @Sendable () async -> Bool {
-        { @concurrent in
-            guard let entries = try? await detector.scan(config: config) else { return true }
-            return entries.contains { $0.port == port }
-        }
+        return result
     }
 }

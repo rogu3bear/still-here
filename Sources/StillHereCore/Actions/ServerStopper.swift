@@ -1,15 +1,20 @@
 import Foundation
 
-/// Stops one listed server without a UI: SIGTERM, wait for the process to exit and the
-/// port to close, and SIGKILL only when asked and only the same verified process.
-/// Shared by the CLI and the MCP server; the menu's `StopFlow` adds confirmation steps.
+/// Signals and reconciles one captured process identity. The CLI/MCP use `stop` for
+/// optional escalation; the native menu confirms each signal through the same operations.
 public struct ServerStopper: Sendable {
+    public enum Signal: Sendable, Hashable {
+        case terminate
+        case kill
+    }
+
     public enum Result: Sendable, Hashable {
         case stopped(killed: Bool)
-        /// SIGTERM was sent but the same process is still running (and `force` was off).
-        case stillRunning
+        /// The captured identity remains after the specified signal's deadline.
+        case stillRunning(after: Signal)
         case notStoppable(String)
         case failed(String)
+        case cancelled
 
         public var succeeded: Bool {
             if case .stopped = self { return true }
@@ -19,27 +24,26 @@ public struct ServerStopper: Sendable {
         public var message: String {
             switch self {
             case .stopped(let killed): killed ? "stopped with SIGKILL" : "stopped"
-            case .stillRunning: "still running after SIGTERM; retry with force to send SIGKILL"
+            case .stillRunning(after: .terminate): "still running after SIGTERM; retry with force to send SIGKILL"
+            case .stillRunning(after: .kill): "still running after SIGKILL"
             case .notStoppable(let reason), .failed(let reason): reason
+            case .cancelled: "stop cancelled; the process may still be running"
             }
         }
     }
 
     private let signaller: ProcessSignaller
-    private let detector: any ServerDetector
-    private let config: IgnoreConfiguration
     private let exitTimeout: Duration
+    private let pollInterval: Duration
 
     public init(
         signaller: ProcessSignaller = ProcessSignaller(),
-        detector: any ServerDetector = DefaultServerDetector(),
-        config: IgnoreConfiguration = .defaults,
-        exitTimeout: Duration = .seconds(3)
+        exitTimeout: Duration = .seconds(3),
+        pollInterval: Duration = .milliseconds(250)
     ) {
         self.signaller = signaller
-        self.detector = detector
-        self.config = config
         self.exitTimeout = exitTimeout
+        self.pollInterval = pollInterval
     }
 
     public func stop(_ entry: ServerEntry, force: Bool) async -> Result {
@@ -49,26 +53,47 @@ public struct ServerStopper: Sendable {
         guard let target = SignalTarget(entry) else {
             return .notStoppable("start time unknown, so the process can't be verified; not stopped")
         }
-        if let failure = Self.failure(signaller.terminate(target), pid: target.pid) { return failure }
-        if await waitForExit(target, port: entry.port) { return .stopped(killed: false) }
-        switch signaller.verify(target) {
-        case .same: break
-        case .gone, .reused: return .stopped(killed: false) // it exited; the PID may be reused
-        case .denied, .refused: return .failed("PID \(target.pid) can no longer be inspected; it may still be running")
-        }
-        guard force else { return .stillRunning }
-        if let failure = Self.failure(signaller.forceKill(target), pid: target.pid) { return failure }
-        return await waitForExit(target, port: entry.port)
-            ? .stopped(killed: true)
-            : .failed("PID \(target.pid) survived SIGKILL")
+        let result = await terminate(target)
+        guard force, result == .stillRunning(after: .terminate) else { return result }
+        return await forceKill(target)
     }
 
-    private func waitForExit(_ target: SignalTarget, port: Int) async -> Bool {
-        let detector = detector
-        let config = config
-        return await signaller.waitForExit(pid: target.pid, timeout: exitTimeout) {
-            guard let entries = try? await detector.scan(config: config) else { return true }
-            return entries.contains { $0.port == port && $0.rootPID == target.pid }
+    /// The caller supplies the target already captured from a stoppable entry.
+    public func terminate(_ target: SignalTarget) async -> Result {
+        await signalAndWait(.terminate, target: target)
+    }
+
+    /// Explicit escalation for the same target; this never resolves a new target by port.
+    public func forceKill(_ target: SignalTarget) async -> Result {
+        await signalAndWait(.kill, target: target)
+    }
+
+    @concurrent
+    private func signalAndWait(_ signal: Signal, target: SignalTarget) async -> Result {
+        guard !Task.isCancelled else { return .cancelled }
+        let outcome = signal == .kill ? signaller.forceKill(target) : signaller.terminate(target)
+        guard !Task.isCancelled else { return .cancelled }
+        // The original can exit between TERM completion and the explicit KILL check.
+        // That check must neither signal the replacement nor call it a failed Stop.
+        if signal == .kill, outcome == .pidReused || outcome == .notFound {
+            return .stopped(killed: false)
+        }
+        if let failure = Self.failure(outcome, pid: target.pid) { return failure }
+        switch await signaller.waitForExit(target, timeout: exitTimeout, pollInterval: pollInterval) {
+        case .stopped: return .stopped(killed: signal == .kill && outcome == .sent)
+        case .stillRunning: return .stillRunning(after: signal)
+        case .denied: return .failed("PID \(target.pid) can no longer be inspected; it may still be running")
+        case .refused(let reason):
+            return .failed("PID \(target.pid) verification was refused (\(Self.refusalDescription(reason))); it may still be running")
+        case .cancelled: return .cancelled
+        }
+    }
+
+    private static func refusalDescription(_ reason: SignalRefusal) -> String {
+        switch reason {
+        case .protectedPID: "protected process"
+        case .ownProcess: "stillhere itself"
+        case .otherUser: "belongs to another user"
         }
     }
 

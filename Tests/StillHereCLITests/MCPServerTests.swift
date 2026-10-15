@@ -22,7 +22,7 @@ struct GoneSignalSystem: SignalSystem {
         return MCPServer(tools: MCPTools(
             caller: session.map { AgentOwner(sessionID: $0, agentPID: nil) },
             query: ServerQuery(detector: detector),
-            stopper: ServerStopper(signaller: ProcessSignaller(system: GoneSignalSystem()), detector: detector, exitTimeout: .milliseconds(50))
+            stopper: ServerStopper(signaller: ProcessSignaller(system: GoneSignalSystem()), exitTimeout: .milliseconds(50))
         ))
     }
 
@@ -118,7 +118,7 @@ struct GoneSignalSystem: SignalSystem {
         let server = MCPServer(tools: MCPTools(
             caller: AgentOwner(sessionID: "after-clear", agentPID: 40_900),
             query: ServerQuery(detector: detector),
-            stopper: ServerStopper(signaller: ProcessSignaller(system: GoneSignalSystem()), detector: detector, exitTimeout: .milliseconds(50))
+            stopper: ServerStopper(signaller: ProcessSignaller(system: GoneSignalSystem()), exitTimeout: .milliseconds(50))
         ))
         let response = try await call(server, ["jsonrpc": "2.0", "id": 12, "method": "tools/call", "params": [
             "name": "list_servers", "arguments": ["mine": true],

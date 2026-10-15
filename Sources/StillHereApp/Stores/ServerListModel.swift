@@ -46,9 +46,7 @@ final class ServerListModel {
         self.settings = settings
         self.clock = clock
         stopFlow = StopFlow(
-            detector: detector,
             signaller: signaller,
-            configuration: { [settings] in settings.ignoreConfiguration },
             exitTimeout: stopTimeout,
             pollInterval: stopPollInterval
         )

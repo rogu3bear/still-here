@@ -11,6 +11,8 @@ final class FakeSignalSystem: SignalSystem {
         var sendResult: Int32 = 0
         var sent: [Int32] = []
         var dieOnSignal = true
+        var lookupAfterSignal: ProcessLookup?
+        var onLookup: (@Sendable () -> Void)?
     }
 
     let state: Mutex<State>
@@ -28,13 +30,20 @@ final class FakeSignalSystem: SignalSystem {
     func send(_ signal: Int32, to pid: Int32) -> Int32 {
         state.withLock { state in
             state.sent.append(signal)
-            if state.sendResult == 0, state.dieOnSignal { state.alive = false }
+            if state.sendResult == 0 {
+                if state.dieOnSignal { state.alive = false }
+                if let lookup = state.lookupAfterSignal { state.lookup = lookup }
+            }
             return state.sendResult
         }
     }
 
     func isAlive(_ pid: Int32) -> Bool { state.withLock { $0.alive } }
-    func lookup(_ pid: Int32) -> ProcessLookup { state.withLock { $0.lookup } }
+    func lookup(_ pid: Int32) -> ProcessLookup {
+        let (lookup, onLookup) = state.withLock { ($0.alive ? $0.lookup : .notFound, $0.onLookup) }
+        onLookup?()
+        return lookup
+    }
 }
 
 @Suite struct ProcessSignallerTests {
@@ -115,12 +124,12 @@ final class FakeSignalSystem: SignalSystem {
         #expect(system.sent.isEmpty)
     }
 
-    @Test func waitForExitSucceedsOnceProcessAndPortAreGone() async {
+    @Test func waitForExitConfirmsTheOriginalIdentityIsGone() async {
         let system = FakeSignalSystem(start: start)
         let signaller = ProcessSignaller(system: system)
         _ = signaller.terminate(target())
-        let stopped = await signaller.waitForExit(pid: 500, timeout: .milliseconds(200), pollInterval: .milliseconds(10)) { false }
-        #expect(stopped)
+        let result = await signaller.waitForExit(target(), timeout: .milliseconds(200), pollInterval: .milliseconds(10))
+        #expect(result == .stopped)
     }
 
     @Test func waitForExitTimesOutWhenProcessIgnoresSIGTERM() async {
@@ -128,17 +137,58 @@ final class FakeSignalSystem: SignalSystem {
         system.state.withLock { $0.dieOnSignal = false }
         let signaller = ProcessSignaller(system: system)
         _ = signaller.terminate(target())
-        let stopped = await signaller.waitForExit(pid: 500, timeout: .milliseconds(100), pollInterval: .milliseconds(10)) { true }
-        #expect(!stopped)
+        let result = await signaller.waitForExit(target(), timeout: .milliseconds(100), pollInterval: .milliseconds(10))
+        #expect(result == .stillRunning)
         #expect(system.sent == [SIGTERM])
     }
 
-    @Test func waitForExitRequiresThePortToClose() async {
+    @Test func pidReuseCompletesWithoutWaitingForTheReplacementToExit() async {
         let system = FakeSignalSystem(start: start)
-        system.state.withLock { $0.alive = false }
-        let stopped = await ProcessSignaller(system: system)
-            .waitForExit(pid: 500, timeout: .milliseconds(80), pollInterval: .milliseconds(10)) { true }
-        #expect(!stopped) // a worker still holds the port
+        system.state.withLock { $0.lookup = .found(LiveProcess(startTime: start.addingTimeInterval(10), name: "node", uid: system.ownUID)) }
+        let result = await ProcessSignaller(system: system).waitForExit(target(), timeout: .zero)
+        #expect(result == .stopped)
+        #expect(system.isAlive(500))
+        #expect(system.sent.isEmpty)
+    }
+
+    @Test func missingIdentityCompletesEvenWhenPIDLivenessIsStale() async {
+        let system = FakeSignalSystem(lookup: .notFound)
+        #expect(system.isAlive(500))
+        #expect(await ProcessSignaller(system: system).waitForExit(target(), timeout: .zero) == .stopped)
+    }
+
+    @Test func deniedAndRefusedCompletionKeepTheirFailureMeaning() async {
+        let denied = ProcessSignaller(system: FakeSignalSystem(lookup: .denied))
+        #expect(await denied.waitForExit(target(), timeout: .zero) == .denied)
+        let other = ProcessSignaller(system: FakeSignalSystem(start: start, uid: 0))
+        #expect(await other.waitForExit(target(), timeout: .zero) == .refused(.otherUser))
+    }
+
+    @Test func cancellationInterruptsCompletionWithoutReportingStopped() async {
+        let system = FakeSignalSystem(lookup: .notFound)
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await ProcessSignaller(system: system).waitForExit(target(), timeout: .seconds(30))
+        }
+        #expect(await task.value == .cancelled)
+        #expect(system.sent.isEmpty)
+    }
+
+    @Test func cancellationInterruptsAnActiveWait() async {
+        let system = FakeSignalSystem(start: start)
+        let (observations, continuation) = AsyncStream<Void>.makeStream()
+        defer { continuation.finish() }
+        system.state.withLock { $0.onLookup = { continuation.yield(()) } }
+        let task = Task {
+            await ProcessSignaller(system: system).waitForExit(
+                target(), timeout: .seconds(30), pollInterval: .seconds(30)
+            )
+        }
+        var iterator = observations.makeAsyncIterator()
+        await iterator.next()
+        task.cancel()
+        #expect(await task.value == .cancelled)
+        #expect(system.sent.isEmpty)
     }
 
     @Test func darwinSystemSeesThisProcess() {

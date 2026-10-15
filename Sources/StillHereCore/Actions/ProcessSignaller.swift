@@ -84,6 +84,16 @@ public enum TargetVerification: Sendable, Hashable {
     case refused(SignalRefusal)
 }
 
+/// Completion of an operation on the captured process, independent of who holds its port.
+public enum ProcessCompletion: Sendable, Hashable {
+    /// The original identity is gone; a replacement PID or listener is left untouched.
+    case stopped
+    case stillRunning
+    case denied
+    case refused(SignalRefusal)
+    case cancelled
+}
+
 public enum SignalOutcome: Sendable, Hashable {
     case sent
     /// The PID now belongs to a different process; nothing was sent.
@@ -133,20 +143,32 @@ public struct ProcessSignaller: Sendable {
         }
     }
 
-    /// Polls until the PID is gone and `isListening` reports the port closed, or the
-    /// budget runs out. Returns true when the server stopped.
+    /// Polls the captured identity after either signal. A reused PID proves the original
+    /// exited; denied/refused lookup and cancellation never imply successful completion.
+    @concurrent
     public func waitForExit(
-        pid: Int32,
+        _ target: SignalTarget,
         timeout: Duration = .seconds(3),
-        pollInterval: Duration = .milliseconds(250),
-        isListening: @Sendable () async -> Bool
-    ) async -> Bool {
+        pollInterval: Duration = .milliseconds(250)
+    ) async -> ProcessCompletion {
         let clock = ContinuousClock()
         let deadline = clock.now + timeout
         while true {
-            if !system.isAlive(pid), await !isListening() { return true }
-            guard clock.now < deadline, !Task.isCancelled else { return false }
-            try? await Task.sleep(for: pollInterval)
+            guard !Task.isCancelled else { return .cancelled }
+            let observation = verify(target)
+            guard !Task.isCancelled else { return .cancelled }
+            switch observation {
+            case .gone, .reused: return .stopped
+            case .denied: return .denied
+            case .refused(let reason): return .refused(reason)
+            case .same: break
+            }
+            guard clock.now < deadline else { return .stillRunning }
+            do {
+                try await Task.sleep(for: pollInterval)
+            } catch {
+                return .cancelled
+            }
         }
     }
 

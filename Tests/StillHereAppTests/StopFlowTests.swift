@@ -117,7 +117,7 @@ import StillHereCore
         let task = Task { await model.stopFlow.confirmTerminate(entry) }
         try? await Task.sleep(for: .milliseconds(50))
         system.update { $0.start = $0.start.addingTimeInterval(30) }
-        await task.value
+        _ = await task.value
         #expect(system.sent == [SIGTERM])
         #expect(model.stopFlow.phase(for: entry) == nil)
     }
