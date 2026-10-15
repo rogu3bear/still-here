@@ -8,7 +8,7 @@ package version must agree before publication.
 ## Local qualification
 
 - `../scripts/check-version-sync.sh`
-- `swift test` from the native repository root
+- `python3 -B scripts/build.py swift test` from the native repository root
 - `./scripts/verify.sh` from this website directory
 - Inspect the actual Worker-rendered home, screens, all seven guide pages,
   privacy, and 404 routes. Traverse the guide and verify its deep links.

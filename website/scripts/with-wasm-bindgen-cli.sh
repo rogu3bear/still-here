@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/build-support.sh"
 CARGO_LOCK_PATH="$ROOT_DIR/Cargo.lock"
 TOOLS_ROOT="$ROOT_DIR/var/cargo-tools"
 
@@ -30,6 +31,7 @@ if [ ! -x "$binary" ]; then
   mkdir -p "$TOOLS_ROOT"
   cargo install \
     --root "$install_root" \
+    --target-dir "$TOOLS_ROOT/target" \
     wasm-bindgen-cli \
     --version "$version" \
     --locked

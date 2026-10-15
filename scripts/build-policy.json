@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "cache_max_gib": 1,
+  "cache_inactive_days": 14,
+  "cache_grace_hours": 24,
+  "minimum_free_gib": 10,
+  "native_max_gib": 4,
+  "website_max_gib": 12,
+  "native_peak_growth_gb": 3
+}

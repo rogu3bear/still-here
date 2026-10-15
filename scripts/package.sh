@@ -15,6 +15,7 @@ source "$(dirname "$0")/common.sh"
 # send anything to Apple.
 NOTARY_PROFILE=""
 FORCE=0
+BUILD_ARGUMENTS=("$@")
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --notary-profile) NOTARY_PROFILE="${2:?--notary-profile needs a profile name}"; shift 2 ;;
@@ -24,6 +25,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+source "$ROOT/scripts/build-support.sh" "${BUILD_ARGUMENTS[@]}"
 # Developer ID Application: MLNavigator Inc. (4JB58L7BTZ)
 APP_SIGN_ID="${APP_SIGN_ID:-092DB0E5D9AC568FD4CD8D2C1D55A4EA0C09E71E}"
 # Developer ID Installer: MLNavigator Inc. (4JB58L7BTZ)
@@ -177,4 +179,8 @@ EOF
 fi
 
 (cd "$ROOT/dist" && shasum -a 256 "$(basename "$PKG")" | tee "$(basename "$PKG").sha256")
+# All payload and signature checks succeeded. Retain the app and installers;
+# these exact staging copies are reproducible and no longer consumed.
+# On any earlier failure they stay available for diagnosis.
+rm -rf "$STAGE" "$CLI_STAGE" "$ROOT/build/expanded" "$ROOT/build/full"
 log "Built $PKG"
