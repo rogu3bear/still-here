@@ -102,9 +102,12 @@ def known_file(path, category):
 
 
 def snapshot(path, category):
+    def inspection_failed(error):
+        raise Hold(f"Cannot inspect compiler cache: {error.filename or path}") from error
+
     nodes = [path]
     if path.is_dir() and not path.is_symlink():
-        for directory, dirs, files in os.walk(path, followlinks=False):
+        for directory, dirs, files in os.walk(path, followlinks=False, onerror=inspection_failed):
             nodes.extend(Path(directory) / name for name in dirs + files)
     amount, latest, identity, issues = 0, 0, [], []
     for node in nodes:

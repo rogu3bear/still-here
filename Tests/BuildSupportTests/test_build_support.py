@@ -1,5 +1,6 @@
 """Behavioral checks for deletion boundaries and real kernel-lock ownership."""
 import fcntl
+import errno
 import hashlib
 import json
 import os
@@ -192,6 +193,40 @@ class WorkspaceTests(unittest.TestCase):
             result = cache.prune(self.root, self.policy)
         self.assertTrue(path.exists())
         self.assertIn("inspection unavailable", result["held"])
+
+    def test_directory_scan_failure_cannot_report_an_eligible_cache(self):
+        path = self.swift_cache()
+        hidden = self.write(".build/out/ModuleCache.noindex/HASH/unreadable/unknown-evidence.txt")
+        scandir = cache.os.scandir
+
+        def inspect(directory):
+            if Path(directory) == hidden.parent:
+                raise PermissionError(errno.EACCES, "inspection unavailable", str(directory))
+            return scandir(directory)
+
+        with patch.object(cache.os, "scandir", side_effect=inspect):
+            with self.assertRaisesRegex(cache.Hold, "Cannot inspect compiler cache"):
+                cache.cache_report(self.root, self.policy)
+        self.assertTrue(path.exists())
+        self.assertEqual(hidden.read_bytes(), b"test artifact\n")
+
+    @unittest.skipIf(os.geteuid() == 0, "Directory permissions require an unprivileged test user")
+    def test_unreadable_directory_retains_cache_and_unknown_contents(self):
+        path = self.swift_cache()
+        hidden = self.write(".build/out/ModuleCache.noindex/HASH/unreadable/unknown-evidence.txt")
+        hidden.parent.chmod(0)
+        try:
+            try:
+                result = self.prune()
+            except cache.Hold as error:
+                self.assertIn("Cannot inspect compiler cache", str(error))
+            else:
+                self.assertTrue(result["held"])
+                self.assertEqual(result["removed"], [])
+            self.assertTrue(path.exists(), "Inspection failure must retain already-inspected siblings")
+        finally:
+            hidden.parent.chmod(0o700)
+        self.assertEqual(hidden.read_bytes(), b"test artifact\n")
 
     def test_identity_change_between_plan_and_removal_retains_data(self):
         path = self.swift_cache()

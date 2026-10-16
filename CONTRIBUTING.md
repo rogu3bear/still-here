@@ -81,6 +81,8 @@ Git-tracked files, path identity and contents immediately before removal.
 Symlinks, hard links, unknown contents, active consumers and inspection failures
 hold cleanup. Compilation databases, Cargo dependency artifacts, tool binaries,
 app bundles, installers, source, website assets and captured evidence are retained.
+An unreadable directory stops cache inspection before any removal; unobserved
+contents never qualify as a disposable cache.
 The standalone website template works without the native controller.
 
 A successful cleanup can remove zero bytes when the caches are warm or within
