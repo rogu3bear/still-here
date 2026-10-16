@@ -1,7 +1,9 @@
 """Behavioral checks for deletion boundaries and real kernel-lock ownership."""
+from contextlib import redirect_stderr
 import fcntl
 import errno
 import hashlib
+from io import StringIO
 import json
 import os
 from pathlib import Path
@@ -374,6 +376,66 @@ class WorkspaceTests(unittest.TestCase):
                                    [sys.executable, "-c", "raise SystemExit(7)"], self.root, dict(os.environ))
         self.assertEqual(status, 7)
         self.assertEqual(maintain.call_count, 1)
+
+    def test_event_log_write_failure_preserves_child_status(self):
+        cases = (("raise SystemExit(0)", 0), ("raise SystemExit(7)", 7),
+                 ("import os, signal; os.kill(os.getpid(), signal.SIGTERM)", 143))
+        for code, expected in cases:
+            with self.subTest(expected=expected):
+                with redirect_stderr(StringIO()) as diagnostics, \
+                        patch.object(build.os, "write", side_effect=OSError(errno.ENOSPC, "log is full")):
+                    status = build.execute(self.root, self.policy, [sys.executable, "-c", code],
+                                           self.root, dict(os.environ))
+                self.assertEqual(status, expected)
+                self.assertIn("Event log unavailable", diagnostics.getvalue())
+
+    def test_event_log_rotation_failure_preserves_child_status(self):
+        (build.state_dir(self.root) / "events.jsonl").write_text("x" * (1024 ** 2))
+        for expected in (0, 7):
+            with self.subTest(expected=expected):
+                with redirect_stderr(StringIO()) as diagnostics, \
+                        patch.object(build.os, "replace", side_effect=PermissionError(errno.EACCES, "log is locked")):
+                    status = build.execute(self.root, self.policy,
+                                           [sys.executable, "-c", f"raise SystemExit({expected})"],
+                                           self.root, dict(os.environ))
+                self.assertEqual(status, expected)
+                self.assertIn("Event log unavailable", diagnostics.getvalue())
+
+    def test_cli_keeps_child_exit_when_event_log_cannot_open(self):
+        for name in ("build.py", "build_cache.py"):
+            shutil.copy2(SCRIPTS / name, self.root / "scripts" / name)
+        (build.state_dir(self.root) / "events.jsonl").mkdir()
+        for expected in (0, 7):
+            with self.subTest(expected=expected):
+                result = subprocess.run(
+                    [sys.executable, "-B", str(self.root / "scripts/build.py"), "exec", "--",
+                     sys.executable, "-c", f"raise SystemExit({expected})"],
+                    cwd=self.root, capture_output=True, text=True, timeout=30)
+                self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+                self.assertIn("Event log unavailable", result.stderr)
+
+    def test_event_log_failure_preserves_completed_cleanup_result(self):
+        path = self.swift_cache()
+        with patch.object(cache.time, "time", return_value=self.now), \
+                patch.object(cache, "open_outputs", return_value=set()), \
+                patch.object(build.os, "write", side_effect=OSError(errno.ENOSPC, "log is full")), \
+                redirect_stderr(StringIO()):
+            result = build.maintain(self.root, self.policy)
+        self.assertFalse(path.exists())
+        self.assertEqual(result["removed"], [str(path.parent.relative_to(self.root))])
+        self.assertGreater(result["removed_bytes"], 0)
+        self.assertEqual(result["held"], [])
+
+    def test_unavailable_diagnostics_preserve_child_status(self):
+        for expected in (0, 7):
+            with self.subTest(expected=expected):
+                with patch.object(build.os, "write", side_effect=OSError(errno.ENOSPC, "log is full")), \
+                        patch.object(build.sys, "stderr") as diagnostics:
+                    diagnostics.write.side_effect = BrokenPipeError(errno.EPIPE, "diagnostics are closed")
+                    status = build.execute(self.root, self.policy,
+                                           [sys.executable, "-c", f"raise SystemExit({expected})"],
+                                           self.root, dict(os.environ))
+                self.assertEqual(status, expected)
 
     def test_capacity_limits_hold_before_child(self):
         with patch.object(build.shutil, "disk_usage", return_value=shutil._ntuple_diskusage(100, 99, 1)), \

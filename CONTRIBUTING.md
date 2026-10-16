@@ -108,7 +108,9 @@ The bundle builds both native products once. Tool installation reuses one
 repository-local Cargo target directory instead of fresh temporary builds.
 Successful packaging removes its payload staging copies after all checks;
 failure staging remains. Maintenance events are bounded to two approximately
-1 MiB logs in ignored `build/.maintenance`. No scheduler is installed. Direct
+1 MiB logs in ignored `build/.maintenance`. Event logging is best effort:
+unavailable logs produce a warning when possible without changing the child
+exit status or completed cleanup result. No scheduler is installed. Direct
 `swift`/`cargo`, IDE routes, custom output directories and builds of an adopted
 standalone website bypass this repository entrypoint. Use the documented scripts
 for automatic retention and serialization.

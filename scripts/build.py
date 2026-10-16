@@ -97,17 +97,27 @@ def lease(root, env):
         os.close(fd)
 
 
-def record(root, event):
-    path = safe_path(root, state_dir(root) / "events.jsonl")
-    # Keep the current and one previous log, each at most about 1 MiB.
-    if path.exists() and path.stat().st_size >= 1024 ** 2:
-        previous = safe_path(root, path.with_suffix(".previous.jsonl"))
-        os.replace(path, previous)
-    fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+def diagnostic(message):
     try:
-        os.write(fd, (json.dumps(dict(at=time.time(), **event)) + "\n").encode())
-    finally:
-        os.close(fd)
+        print(message, file=sys.stderr)
+    except (OSError, ValueError):
+        pass
+
+
+def record(root, event):
+    try:
+        path = safe_path(root, state_dir(root) / "events.jsonl")
+        # Keep the current and one previous log, each at most about 1 MiB.
+        if path.exists() and path.stat().st_size >= 1024 ** 2:
+            previous = safe_path(root, path.with_suffix(".previous.jsonl"))
+            os.replace(path, previous)
+        fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        try:
+            os.write(fd, (json.dumps(dict(at=time.time(), **event)) + "\n").encode())
+        finally:
+            os.close(fd)
+    except (OSError, ValueError, Hold) as error:
+        diagnostic(f"[build] Event log unavailable: {error}")
 
 
 def output_report(root):
@@ -189,7 +199,7 @@ def execute(root, policy, command, cwd, env):
             if result == 0:
                 maintain(root, policy)
             else:
-                print("[build] Failed build output retained; post-build cleanup skipped.", file=sys.stderr)
+                diagnostic("[build] Failed build output retained; post-build cleanup skipped.")
         return result
 
 
@@ -198,12 +208,12 @@ def maintain(root, policy):
         result = prune(root, policy)
         record(root, dict(kind="cleanup", **result))
         if result["removed_bytes"]:
-            print(f"[build] Reclaimed {result['removed_bytes'] / GIB:.2f} GiB of disposable caches.", file=sys.stderr)
+            diagnostic(f"[build] Reclaimed {result['removed_bytes'] / GIB:.2f} GiB of disposable caches.")
         if result["held"]:
-            print("[build] Some caches retained: " + "; ".join(result["held"]), file=sys.stderr)
+            diagnostic("[build] Some caches retained: " + "; ".join(result["held"]))
         return result
     except (OSError, ValueError, Hold, subprocess.SubprocessError) as error:
-        print(f"[build] Cleanup held; files retained: {error}", file=sys.stderr)
+        diagnostic(f"[build] Cleanup held; files retained: {error}")
         return {"removed_bytes": 0, "removed": [], "held": [str(error)]}
 
 
@@ -250,5 +260,5 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except (Hold, OSError, ValueError, subprocess.SubprocessError) as error:
-        print(f"BUILD HOLD: {error}", file=sys.stderr)
+        diagnostic(f"BUILD HOLD: {error}")
         sys.exit(75)
