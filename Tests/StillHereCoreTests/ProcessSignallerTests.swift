@@ -99,6 +99,11 @@ final class FakeSignalSystem: SignalSystem {
     @Test func lookupAndSendErrorsAreReported() {
         #expect(ProcessSignaller(system: FakeSignalSystem(lookup: .notFound)).terminate(target()) == .notFound)
         #expect(ProcessSignaller(system: FakeSignalSystem(lookup: .denied)).terminate(target()) == .permissionDenied)
+        let unavailable = FakeSignalSystem(lookup: .failed(errno: EIO))
+        let signaller = ProcessSignaller(system: unavailable)
+        #expect(signaller.verify(target()) == .failed(errno: EIO))
+        #expect(signaller.terminate(target()) == .failed(errno: EIO))
+        #expect(unavailable.sent.isEmpty)
         let system = FakeSignalSystem(start: start)
         system.state.withLock { $0.sendResult = EPERM }
         #expect(ProcessSignaller(system: system).terminate(target()) == .permissionDenied)
@@ -162,6 +167,13 @@ final class FakeSignalSystem: SignalSystem {
         #expect(await denied.waitForExit(target(), timeout: .zero) == .denied)
         let other = ProcessSignaller(system: FakeSignalSystem(start: start, uid: 0))
         #expect(await other.waitForExit(target(), timeout: .zero) == .refused(.otherUser))
+    }
+
+    @Test func lookupFailureDoesNotBecomeSuccessfulCompletion() async {
+        let system = FakeSignalSystem(lookup: .failed(errno: EIO))
+        let result = await ProcessSignaller(system: system).waitForExit(target(), timeout: .zero)
+        #expect(result == .failed(errno: EIO))
+        #expect(system.sent.isEmpty)
     }
 
     @Test func cancellationInterruptsCompletionWithoutReportingStopped() async {

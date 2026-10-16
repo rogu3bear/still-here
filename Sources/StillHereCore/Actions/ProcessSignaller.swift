@@ -19,6 +19,7 @@ public enum ProcessLookup: Sendable, Hashable {
     case found(LiveProcess)
     case notFound
     case denied
+    case failed(errno: Int32)
 }
 
 /// The kernel operations the signaller needs; injectable so tests never signal anything.
@@ -81,6 +82,7 @@ public enum TargetVerification: Sendable, Hashable {
     /// The PID now belongs to a different process (start time or name changed).
     case reused
     case denied
+    case failed(errno: Int32)
     case refused(SignalRefusal)
 }
 
@@ -90,6 +92,7 @@ public enum ProcessCompletion: Sendable, Hashable {
     case stopped
     case stillRunning
     case denied
+    case failed(errno: Int32)
     case refused(SignalRefusal)
     case cancelled
 }
@@ -132,6 +135,8 @@ public struct ProcessSignaller: Sendable {
             return .gone
         case .denied:
             return .denied
+        case .failed(let code):
+            return .failed(errno: code)
         case .found(let live):
             // `ps etime` has one-second resolution; libproc is exact to the microsecond.
             let tolerance: TimeInterval = target.approximateStart ? 2 : 0.001
@@ -160,6 +165,7 @@ public struct ProcessSignaller: Sendable {
             switch observation {
             case .gone, .reused: return .stopped
             case .denied: return .denied
+            case .failed(let code): return .failed(errno: code)
             case .refused(let reason): return .refused(reason)
             case .same: break
             }
@@ -186,6 +192,7 @@ public struct ProcessSignaller: Sendable {
         case .gone: return .notFound
         case .reused: return .pidReused
         case .denied: return .permissionDenied
+        case .failed(let code): return .failed(errno: code)
         case .refused(let reason): return .refused(reason)
         }
         switch system.send(signal, to: target.pid) {

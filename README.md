@@ -61,8 +61,8 @@ now holds the port, nothing more is offered. Each signal goes to one process
 its start time and name have not changed, so a reused PID is never signalled.
 After either signal, completion checks that captured identity again. If the
 original process is gone or its PID has been reused, it is stopped; a replacement
-listener is left untouched. Denied or refused verification and cancellation stay
-unresolved, with no automatic escalation. A process still present after SIGKILL
+listener is left untouched. Denied, refused, or failed verification and cancellation
+stay unresolved, with no automatic escalation. A process still present after SIGKILL
 is reported as still running rather than as a successful Stop.
 Stop is never offered for system, daemon or app-helper listeners, and the app
 never signals itself, launchd, or processes owned by another user.

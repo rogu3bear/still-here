@@ -8,6 +8,7 @@ enum Libproc {
         case found(Value)
         case notFound
         case denied
+        case failed(errno: Int32)
     }
 
     struct BSDInfo {
@@ -17,12 +18,26 @@ enum Libproc {
         var startTime: Date
     }
 
-    static func bsdInfo(_ pid: Int32) -> Lookup<BSDInfo> {
+    static func bsdInfo(
+        _ pid: Int32,
+        read: (Int32, inout proc_bsdinfo, Int32) -> Int32 = { pid, info, size in
+            proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size)
+        }
+    ) -> Lookup<BSDInfo> {
         var info = proc_bsdinfo()
         let size = Int32(MemoryLayout<proc_bsdinfo>.size)
         errno = 0
-        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else {
-            return errno == EPERM ? .denied : .notFound
+        let received = read(pid, &info, size)
+        let error = errno
+        guard received == size else {
+            // Only an explicit missing-process error establishes exit. Short data,
+            // unavailable inspection, and other syscall errors remain unresolved.
+            guard received == 0 else { return .failed(errno: EIO) }
+            switch error {
+            case ESRCH: return .notFound
+            case EPERM, EACCES: return .denied
+            default: return .failed(errno: error == 0 ? EIO : error)
+            }
         }
         let longName = cString(fromTuple: info.pbi_name)
         let name = longName.isEmpty ? cString(fromTuple: info.pbi_comm) : longName

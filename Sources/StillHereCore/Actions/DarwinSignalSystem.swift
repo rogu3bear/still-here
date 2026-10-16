@@ -17,6 +17,7 @@ public struct DarwinSignalSystem: SignalSystem {
         case .found(let info): .found(LiveProcess(startTime: info.startTime, name: info.name, uid: info.uid))
         case .notFound: .notFound
         case .denied: .denied
+        case .failed(let code): .failed(errno: code)
         }
     }
 }

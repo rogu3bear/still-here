@@ -9,6 +9,7 @@ import StillHereCore
 nonisolated enum CompletionScenario: CaseIterable, Sendable {
     case deniedAfterTERM
     case refusedAfterTERM
+    case failedLookupAfterTERM
     case reusedAfterTERM
     case reusedAfterKILL
     case reusedBeforeKILL
@@ -18,12 +19,13 @@ nonisolated enum CompletionScenario: CaseIterable, Sendable {
     case replacementListenerOnSamePort
     case deniedAfterKILL
     case refusedAfterKILL
+    case failedLookupAfterKILL
     case cancelledAfterTERM
     case cancelledAfterKILL
 
     var expectsKILL: Bool {
         switch self {
-        case .reusedAfterKILL, .goneAfterKILL, .sameIdentitySurvivesKILL, .deniedAfterKILL, .refusedAfterKILL, .cancelledAfterKILL: true
+        case .reusedAfterKILL, .goneAfterKILL, .sameIdentitySurvivesKILL, .deniedAfterKILL, .refusedAfterKILL, .failedLookupAfterKILL, .cancelledAfterKILL: true
         default: false
         }
     }
@@ -42,6 +44,8 @@ nonisolated enum CompletionScenario: CaseIterable, Sendable {
             .failed("PID \(pid) can no longer be inspected; it may still be running")
         case .refusedAfterTERM, .refusedAfterKILL:
             .failed("PID \(pid) verification was refused (belongs to another user); it may still be running")
+        case .failedLookupAfterTERM, .failedLookupAfterKILL:
+            .failed("couldn't verify PID \(pid): \(String(cString: strerror(EIO))); it may still be running")
         case .reusedAfterTERM, .reusedBeforeKILL, .replacementListenerOnSamePort: .stopped(killed: false)
         case .reusedAfterKILL, .goneAfterKILL: .stopped(killed: true)
         case .sameIdentitySurvivesTERM: .stillRunning(after: .terminate)
@@ -103,6 +107,7 @@ nonisolated private final class CompletionSignalSystem: SignalSystem {
         guard let lastSignal else { return .found(live) }
         switch scenario {
         case .deniedAfterTERM: return .denied
+        case .failedLookupAfterTERM: return .failed(errno: EIO)
         case .refusedAfterTERM: live.uid += 1
         case .reusedAfterTERM: live.startTime += 60
         case .reusedBeforeKILL where termLookups > 1: live.startTime += 60
@@ -110,6 +115,7 @@ nonisolated private final class CompletionSignalSystem: SignalSystem {
         case .reusedAfterKILL where lastSignal == SIGKILL: live.startTime += 60
         case .goneAfterKILL where lastSignal == SIGKILL: return .notFound
         case .deniedAfterKILL where lastSignal == SIGKILL: return .denied
+        case .failedLookupAfterKILL where lastSignal == SIGKILL: return .failed(errno: EIO)
         case .refusedAfterKILL where lastSignal == SIGKILL: live.uid += 1
         default: break
         }

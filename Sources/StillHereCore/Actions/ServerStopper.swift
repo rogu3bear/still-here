@@ -83,6 +83,8 @@ public struct ServerStopper: Sendable {
         case .stopped: return .stopped(killed: signal == .kill && outcome == .sent)
         case .stillRunning: return .stillRunning(after: signal)
         case .denied: return .failed("PID \(target.pid) can no longer be inspected; it may still be running")
+        case .failed(let code):
+            return .failed("couldn't verify PID \(target.pid): \(String(cString: strerror(code))); it may still be running")
         case .refused(let reason):
             return .failed("PID \(target.pid) verification was refused (\(Self.refusalDescription(reason))); it may still be running")
         case .cancelled: return .cancelled
