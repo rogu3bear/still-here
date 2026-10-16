@@ -114,7 +114,10 @@ def snapshot(path, category):
         value = node.lstat()
         identity.append((str(node.relative_to(path.parent)), value.st_dev, value.st_ino,
                          value.st_mtime_ns, value.st_ctime_ns, value.st_size))
-        latest = max(latest, value.st_atime, value.st_mtime, value.st_ctime)
+        latest = max(latest, value.st_mtime, value.st_ctime)
+        # Traversal itself reads directories; only file access signals reuse.
+        if stat.S_ISREG(value.st_mode):
+            latest = max(latest, value.st_atime)
         amount += value.st_blocks * 512
         if stat.S_ISLNK(value.st_mode) or not (stat.S_ISREG(value.st_mode) or stat.S_ISDIR(value.st_mode)):
             issues.append("symlink or special file")

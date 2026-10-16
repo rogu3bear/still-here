@@ -6,10 +6,12 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -17,6 +19,11 @@ SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 import build
 import build_cache as cache
+
+
+def stat_with_access_time(value, atime):
+    fields = {name: getattr(value, name) for name in dir(value) if name.startswith("st_")}
+    return SimpleNamespace(**dict(fields, st_atime=atime, st_atime_ns=int(atime * 1e9)))
 
 
 class WorkspaceTests(unittest.TestCase):
@@ -103,6 +110,60 @@ class WorkspaceTests(unittest.TestCase):
         self.policy["cache_max_gib"] = 1e-9
         self.now = time.time()
         result = self.prune()
+        self.assertTrue(path.exists())
+        self.assertEqual(result["removed"], [])
+        self.assertTrue(result["held"])
+
+    def test_directory_reads_do_not_make_expired_cache_warm(self):
+        path = self.swift_cache()
+        scandir, lstat = cache.os.scandir, Path.lstat
+        accessed, reads = {}, 0
+
+        def inspect(directory):
+            nonlocal reads
+            entries = scandir(directory)
+            if not isinstance(directory, int):
+                reads += 1
+                accessed[Path(directory)] = self.now + reads
+            return entries
+
+        def observed(node):
+            value = lstat(node)
+            return stat_with_access_time(value, accessed[node]) if node in accessed else value
+
+        # Model strict-atime directory reads without changing mtime/ctime,
+        # unlike os.utime, and still walk and remove real fixture contents.
+        with patch.object(cache.os, "scandir", side_effect=inspect), \
+                patch.object(Path, "lstat", observed):
+            result = self.prune()
+        self.assertFalse(path.exists())
+        self.assertEqual(result["removed"], [str(path.parent.relative_to(self.root))])
+        self.assertEqual(result["held"], [])
+
+    def test_directory_access_after_plan_does_not_hold_removal(self):
+        path = self.swift_cache()
+        units, _ = cache.plan(self.root, self.policy, self.now)
+        lstat = Path.lstat
+
+        def observed(node):
+            value = lstat(node)
+            return stat_with_access_time(value, self.now) if stat.S_ISDIR(value.st_mode) else value
+
+        with patch.object(Path, "lstat", observed):
+            cache.remove_unit(self.root, units[0])
+        self.assertFalse(path.exists())
+
+    def test_recent_file_access_keeps_cache_above_budget(self):
+        path = self.swift_cache()
+        self.policy["cache_max_gib"] = 1e-9
+        lstat = Path.lstat
+
+        def observed(node):
+            value = lstat(node)
+            return stat_with_access_time(value, self.now) if node == path else value
+
+        with patch.object(Path, "lstat", observed):
+            result = self.prune()
         self.assertTrue(path.exists())
         self.assertEqual(result["removed"], [])
         self.assertTrue(result["held"])

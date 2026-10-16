@@ -71,8 +71,10 @@ python3 -B -m unittest discover -s Tests/BuildSupportTests -v
 [build-policy.json](scripts/build-policy.json) retains warm compiler caches for
 at least 24 hours, expires inactive caches after 14 days, and limits their
 combined retained size to 1 GiB when older eligible entries can be removed.
-Age uses the latest recorded file access or change; filesystems that do not
-record access times use change times as the retention signal.
+Age uses the latest recorded file access or file/directory modification or
+change. Directory access times are excluded because inspection itself reads
+directories. Filesystems that do not record access times use change times as
+the retention signal.
 Maintenance runs before each outer build and after successful completion.
 Failures skip post-build cleanup. It removes only recognized Swift module/SDK
 cache entries and Rust incremental units under `.build`, `website/target` and
