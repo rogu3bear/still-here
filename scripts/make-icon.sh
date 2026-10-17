@@ -2,6 +2,7 @@
 # Regenerates Packaging/AppIcon.icns from scripts/make-icon.swift.
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
+source "$ROOT/scripts/build-support.sh"
 
 WORK="$ROOT/build/icon"
 SET="$WORK/AppIcon.iconset"

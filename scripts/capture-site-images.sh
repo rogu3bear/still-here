@@ -2,8 +2,9 @@
 # Capture actual SwiftUI product views, using inert sample data and a fixed clock.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+source "$ROOT/scripts/build-support.sh"
 cd "$ROOT"
-swift build
+python3 -B "$ROOT/scripts/build.py" swift build
 mkdir -p build/capture-module-cache website/assets/images
 python3 - <<'PY'
 from pathlib import Path

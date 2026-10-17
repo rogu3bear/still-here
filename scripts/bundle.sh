@@ -7,6 +7,7 @@ set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
 DEV_SIGN=0
+BUILD_ARGUMENTS=("$@")
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dev) DEV_SIGN=1; shift ;;
@@ -15,13 +16,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+source "$ROOT/scripts/build-support.sh" "${BUILD_ARGUMENTS[@]}"
 "$ROOT/scripts/check-version-sync.sh"
 
 log "Building release binary (arm64)"
 cd "$ROOT"
-swift build -c release --arch arm64 --product "$APP_EXECUTABLE"
-swift build -c release --arch arm64 --product "$CLI_NAME"
-BIN_DIR="$(swift build -c release --arch arm64 --show-bin-path)"
+# Both executable products share one build graph and one incremental invocation.
+python3 -B "$ROOT/scripts/build.py" swift build -c release --arch arm64
+BIN_DIR="$(python3 -B "$ROOT/scripts/build.py" swift build -c release --arch arm64 --show-bin-path)"
 for binary in "$APP_EXECUTABLE" "$CLI_NAME"; do
   [[ -x "$BIN_DIR/$binary" ]] || die "built binary not found at $BIN_DIR/$binary"
 done

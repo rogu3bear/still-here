@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/build-support.sh"
 EXPECTED_CARGO_LEPTOS_VERSION="0.3.5"
 CARGO_LEPTOS_ROOT="$ROOT_DIR/var/cargo-tools/cargo-leptos-$EXPECTED_CARGO_LEPTOS_VERSION"
 if [ -x "$CARGO_LEPTOS_ROOT/bin/cargo-leptos" ]; then

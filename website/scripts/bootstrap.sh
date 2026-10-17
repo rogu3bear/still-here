@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/build-support.sh"
 EXPECTED_CARGO_LEPTOS_VERSION="0.3.5"
 CARGO_LEPTOS_ROOT="$ROOT_DIR/var/cargo-tools/cargo-leptos-$EXPECTED_CARGO_LEPTOS_VERSION"
 if [ -x "$CARGO_LEPTOS_ROOT/bin/cargo-leptos" ]; then
@@ -56,7 +57,8 @@ if [ "$current_cargo_leptos_version" = "$EXPECTED_CARGO_LEPTOS_VERSION" ]; then
   log "cargo-leptos $EXPECTED_CARGO_LEPTOS_VERSION already installed."
 else
   log "Installing cargo-leptos $EXPECTED_CARGO_LEPTOS_VERSION."
-  cargo install cargo-leptos --locked --version "$EXPECTED_CARGO_LEPTOS_VERSION" --root "$CARGO_LEPTOS_ROOT"
+  cargo install cargo-leptos --locked --version "$EXPECTED_CARGO_LEPTOS_VERSION" --root "$CARGO_LEPTOS_ROOT" \
+    --target-dir "$ROOT_DIR/var/cargo-tools/target"
   export PATH="$CARGO_LEPTOS_ROOT/bin:$PATH"
 fi
 
@@ -73,7 +75,8 @@ if [ "$current_worker_build_version" = "$EXPECTED_WORKER_BUILD_VERSION" ]; then
   log "worker-build $EXPECTED_WORKER_BUILD_VERSION already installed."
 else
   log "Installing worker-build $EXPECTED_WORKER_BUILD_VERSION."
-  cargo install worker-build --locked --version "$EXPECTED_WORKER_BUILD_VERSION"
+  cargo install worker-build --locked --version "$EXPECTED_WORKER_BUILD_VERSION" \
+    --target-dir "$ROOT_DIR/var/cargo-tools/target"
 fi
 
 if ! command -v cargo-audit >/dev/null 2>&1; then

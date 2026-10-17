@@ -16,6 +16,7 @@ echo "==> Verifying local release readiness"
 if ! command -v cargo-audit >/dev/null 2>&1; then
   ./scripts/security-audit.sh
 fi
+source "$(dirname "$0")/build-support.sh"
 bun ./scripts/test-acceptance.mjs
 bun ./scripts/test-asset-fingerprints.mjs
 

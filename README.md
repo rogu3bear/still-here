@@ -327,12 +327,20 @@ Requires Xcode 26 or later (Swift 6.2 or later).
 ```sh
 git clone https://github.com/rogu3bear/stillhere.git
 cd stillhere
-swift build                  # debug build
-swift test                   # unit tests (fake lsof output, no live processes)
-swift run stillhere           # the CLI, from source
+python3 -B scripts/build.py swift build          # debug build
+python3 -B scripts/build.py swift test           # unit tests (fake lsof output, no live processes)
+python3 -B scripts/build.py swift run stillhere  # the CLI, from source
 scripts/bundle.sh --dev      # build/Still Here.app, ad-hoc signed for local runs
 open "build/Still Here.app"
 ```
+
+Build scripts require Python 3.11 or later. The build entrypoint reuses `.build`,
+rejects a second build while this checkout is busy, and applies the repository's
+[cache retention policy](scripts/build-policy.json). Run
+`python3 -B scripts/build.py report` to inspect disk use, or
+`python3 -B scripts/build.py clean` to preview cleanup. See
+[build storage and cleanup](CONTRIBUTING.md#build-storage-and-cleanup) for the
+preservation rules and limits.
 
 The project uses Swift Package Manager only. There is no Xcode project, because
 SwiftPM builds the executables and the scripts assemble the `.app` bundle.
