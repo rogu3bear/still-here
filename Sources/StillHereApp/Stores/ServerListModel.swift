@@ -23,6 +23,7 @@ final class ServerListModel {
 
     let settings: SettingsStore
     let stopFlow: StopFlow
+    let flushFlow: FlushFlow
 
     @ObservationIgnored private let detector: any ServerDetector
     @ObservationIgnored private let sessionSource: any SessionSource
@@ -37,6 +38,7 @@ final class ServerListModel {
         sessionSource: any SessionSource = FakeSessionSource([]),
         settings: SettingsStore,
         signaller: ProcessSignaller,
+        flushSource: any FlushSource = FixedFlushSource(),
         clock: any NowProvider = SystemNow(),
         stopTimeout: Duration = .seconds(3),
         stopPollInterval: Duration = .milliseconds(250)
@@ -50,7 +52,10 @@ final class ServerListModel {
             exitTimeout: stopTimeout,
             pollInterval: stopPollInterval
         )
+        flushFlow = FlushFlow(source: flushSource, signaller: signaller,
+                              exitTimeout: stopTimeout, pollInterval: stopPollInterval)
         stopFlow.onStopped = { [weak self] in await self?.refresh(.serverStopped) }
+        flushFlow.onFinished = { [weak self] in await self?.refresh(.serverStopped) }
     }
 
     // MARK: Derived state

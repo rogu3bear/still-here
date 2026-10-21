@@ -57,6 +57,31 @@ enum Libproc {
         return Array(pids.prefix(Int(count))).filter { $0 > 0 }
     }
 
+    /// Kernel-filtered user enumeration: protected processes belonging to other
+    /// users must not turn a user-scoped cleanup into an inspection failure.
+    /// A full buffer is retried; a failed or truncated snapshot is never trusted.
+    static func pids(
+        for uid: UInt32,
+        list: (UInt32, UnsafeMutableRawPointer?, Int32) -> Int32 = { uid, buffer, size in
+            proc_listpids(UInt32(PROC_UID_ONLY), uid, buffer, size)
+        }
+    ) -> [Int32]? {
+        let stride = MemoryLayout<Int32>.stride
+        let estimate = list(uid, nil, 0)
+        guard estimate > 0, Int(estimate) % stride == 0 else { return nil }
+        var capacity = Int(estimate) / stride + 64
+        for _ in 0..<3 {
+            var pids = [Int32](repeating: 0, count: capacity)
+            let received = pids.withUnsafeMutableBytes { list(uid, $0.baseAddress, Int32($0.count)) }
+            guard received > 0, Int(received) % stride == 0 else { return nil }
+            if Int(received) < capacity * stride {
+                return Array(pids.prefix(Int(received) / stride)).filter { $0 > 1 }
+            }
+            capacity *= 2
+        }
+        return nil
+    }
+
     static func currentDirectory(_ pid: Int32) -> String? {
         var info = proc_vnodepathinfo()
         let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)

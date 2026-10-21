@@ -10,6 +10,7 @@ struct AppEnvironment {
     var signaller: ProcessSignaller
     var loginItems: any LoginItemService
     var actions: any ServerActions
+    var flushSource: any FlushSource = FixedFlushSource()
 
     /// Real lsof + libproc detection, real signals, real login items.
     static func live() -> AppEnvironment {
@@ -19,7 +20,8 @@ struct AppEnvironment {
             defaults: ProductPreferences.applicationDefaults(),
             signaller: ProcessSignaller(system: DarwinSignalSystem()),
             loginItems: MainAppLoginItem(),
-            actions: LiveServerActions()
+            actions: LiveServerActions(),
+            flushSource: LiveFlushSource()
         )
     }
 
@@ -49,7 +51,8 @@ struct AppStores {
             detector: environment.detector,
             sessionSource: environment.sessionSource,
             settings: settings,
-            signaller: environment.signaller
+            signaller: environment.signaller,
+            flushSource: environment.flushSource
         )
         launchAtLogin = LaunchAtLoginController(service: environment.loginItems)
         actions = environment.actions

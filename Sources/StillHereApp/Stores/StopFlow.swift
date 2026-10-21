@@ -33,6 +33,7 @@ final class StopFlow {
     }
 
     private(set) var phases: [Key: Phase] = [:]
+    var isBusy: Bool { phases.values.contains(where: \.isBusy) }
 
     @ObservationIgnored private let stopper: ServerStopper
     /// Called only after core completion confirms the original identity is gone.

@@ -18,6 +18,7 @@ struct StopConfirmationBar: View {
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.orange.opacity(0.12), in: .rect(cornerRadius: 6))
+        .disabled(model.flushFlow.isBusy)
     }
 
     @ViewBuilder

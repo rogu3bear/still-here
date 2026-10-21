@@ -37,6 +37,10 @@ Keep network access restricted to detected loopback servers. Preserve the
 process identity checks and confirmation behavior around Stop. Missing agent
 attribution stays unknown; do not infer ownership from a convenient label.
 Use inert sample projects in screenshots and tests.
+Flush uses an on-demand full process/session snapshot rather than the menu's
+age-filtered session display. Preserve unknown ownership, active checkout
+protection, the fixed confirmation plan and per-target revalidation. Its bulk
+operation sends SIGTERM only; it never escalates to SIGKILL.
 
 ## Before a pull request
 

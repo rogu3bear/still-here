@@ -56,3 +56,37 @@ import Testing
         #expect(info.startTime == Date(timeIntervalSince1970: 1_800_000_000))
     }
 }
+
+@Suite struct LibprocUserEnumerationTests {
+    @Test func userFilterAndByteCountArePreserved() {
+        let result = Libproc.pids(for: 501) { uid, buffer, _ in
+            #expect(uid == 501)
+            guard let buffer else { return 12 }
+            for (index, pid) in [Int32(0), 100, 101].enumerated() {
+                buffer.storeBytes(of: pid, toByteOffset: index * 4, as: Int32.self)
+            }
+            return 12
+        }
+        #expect(result == [100, 101])
+    }
+
+    @Test func failedAndPartialEnumerationsRemainUnknown() {
+        #expect(Libproc.pids(for: 501) { _, _, _ in 0 } == nil)
+        #expect(Libproc.pids(for: 501) { _, _, _ in -1 } == nil)
+        #expect(Libproc.pids(for: 501) { _, buffer, _ in buffer == nil ? 4 : 3 } == nil)
+        #expect(Libproc.pids(for: 501) { _, buffer, size in buffer == nil ? 4 : size } == nil)
+    }
+
+    @Test func fullBufferIsRetriedBeforeUsingTheSnapshot() {
+        var calls = 0
+        let result = Libproc.pids(for: 501) { _, buffer, size in
+            calls += 1
+            guard let buffer else { return 4 }
+            if calls == 2 { return size }
+            buffer.storeBytes(of: Int32(100), as: Int32.self)
+            return 4
+        }
+        #expect(calls == 3)
+        #expect(result == [100])
+    }
+}

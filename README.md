@@ -67,6 +67,19 @@ is reported as still running rather than as a successful Stop.
 Stop is never offered for system, daemon or app-helper listeners, and the app
 never signals itself, launchd, or processes owned by another user.
 
+**Flush** in the menu footer reviews orphaned servers and leftover development
+processes, including Node workers that no longer have a listening port. Review
+the captured names, PIDs and project folders, then confirm **Stop processes**.
+Flush leaves active agent sessions, their hosts, descendants and processes in
+their active checkouts running, including newly started sessions and reviewers.
+Processes attached to a live terminal or app, launchd-managed services, ignored
+listeners, and uncertain ownership are preserved. Unattributed detached processes must be in a Git
+checkout and at least one minute old; arbitrary Python jobs are not included.
+Each target is checked against a fresh ownership scan before SIGTERM and then
+checked for exit using its captured identity. Flush never sends SIGKILL or adds
+new processes after confirmation. Its result distinguishes stopped, preserved
+and unresolved processes; a failed scan stops the remaining batch.
+
 The list refreshes on a timer and whenever you open the menu. IPv4 and IPv6
 listeners of one process tree on the same port appear as one entry; unrelated
 processes sharing a port get separate entries.
