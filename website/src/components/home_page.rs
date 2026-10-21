@@ -44,7 +44,7 @@ pub fn HomePage() -> impl IntoView {
                 <article><span class="feature-number">"01"</span><div><h3>"Find the project behind the port."</h3><p>"Working directory, git branch, worktree, framework, and uptime. Open the page or jump straight into the project."</p></div></article>
                 <article><span class="feature-number">"02"</span><div><h3>"Keep track of your coding agents."</h3><p>"Trace a server to the agent that started it. Spot orphaned Claude Code servers when their launching session has ended."</p></div></article>
                 <article><span class="feature-number">"03"</span><div><h3>"Catch checkout collisions."</h3><p>"See when independent agent sessions share a working tree. Parent sessions and their workers stay grouped."</p></div></article>
-                <article><span class="feature-number">"04"</span><div><h3>"Stop the right process."</h3><p>"A confirmed Stop checks the process identity before sending SIGTERM. System services and app helpers stay protected."</p></div></article>
+                <article><span class="feature-number">"04"</span><div><h3>"Clear the loose ends."</h3><p>"Stop one server, or use Flush to review orphaned servers and leftover development processes together. Active sessions and their checkouts stay protected; every signal gets a fresh identity check."</p><a class="text-link" href="/docs/menu-bar#flush" target="_self">"Review before you Flush →"</a></div></article>
             </div>
         </section>
         <section class="tools-section section" aria-labelledby="tools-title"><div class="wrap">

@@ -22,8 +22,8 @@ hero's empty vertical space. The actual interface must appear in the first
 desktop screen. On narrow screens, stack the copy, complete capture, and notes;
 never crop the native controls to fit the layout.
 
-The site's exact-screen gallery lives at `/screens`. Menu, dark menu, and Stop
-confirmation are rendered from the shipped SwiftUI views with inert sample
+The site's exact-screen gallery lives at `/screens`. Menu, dark menu, Stop
+confirmation, and Flush review and result are rendered from the shipped SwiftUI views with inert sample
 projects, a fixed clock, and original controls. General, Ignore List, and About
 are captured from the displayed native windows using CUA; do not substitute
 off-screen approximations of system chrome. Images open at original resolution.

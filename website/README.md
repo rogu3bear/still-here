@@ -68,7 +68,7 @@ Layouts include mobile, intermediate, XL at 1280px, XXL at 1536px, and XXXL at
 1920px. Content is capped at 1440px on ultrawide displays.
 
 `/screens` shows full native views and original-resolution image links. Menu,
-dark menu, and Stop confirmation PNGs come from the actual SwiftUI views with
+dark menu, Stop confirmation, and Flush review and result PNGs come from the actual SwiftUI views with
 inert fixtures. Settings, Ignore List, and About JPEGs are CUA captures of the
 displayed native windows. `../scripts/capture-site-images.sh` renders the menu
 states and prepares isolated bundles in `../build/site-native/` for recapturing

@@ -10,7 +10,10 @@ struct Capture {
         let output = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? NSTemporaryDirectory(), isDirectory: true)
         let scenario = FakeServerDetector.Scenario(entries: [SampleServers.next, SampleServers.flask, SampleServers.vite], probes: SampleServers.probes)
         let stores = AppStores(.preview(scenario: scenario))
-        let model = ServerListModel(detector: FakeServerDetector(scenario: scenario), sessionSource: FakeSessionSource(), settings: stores.settings, signaller: ProcessSignaller(system: InertSignalSystem()), clock: FixedNow(SampleServers.referenceDate))
+        let model = ServerListModel(detector: FakeServerDetector(scenario: scenario), sessionSource: FakeSessionSource(), settings: stores.settings, signaller: ProcessSignaller(system: InertSignalSystem()), flushSource: FixedFlushSource([
+            FlushCandidate(target: SignalTarget(pid: 44001, name: "node", startTime: SampleServers.referenceDate), directory: "/Users/dev/Projects/old-preview", reason: .orphaned),
+            FlushCandidate(target: SignalTarget(pid: 44002, name: "esbuild", startTime: SampleServers.referenceDate), directory: "/Users/dev/Projects/old-preview", reason: .detached)
+        ]), clock: FixedNow(SampleServers.referenceDate))
         model.isPanelOpen = true
         await model.refresh(.manual)
         if let screen = Bundle.main.object(forInfoDictionaryKey: "CaptureScreen") as? String {
@@ -37,6 +40,12 @@ struct Capture {
         }
         try await render(menu(.light), name: "menu-bar", output: output)
         try await render(menu(.dark), name: "menu-bar-dark", output: output, dark: true)
+        await model.flushFlow.request(config: .defaults)
+        try await render(menu(.light), name: "flush-review", output: output)
+        try await render(menu(.dark), name: "flush-review-dark", output: output, dark: true)
+        await model.flushFlow.confirm(config: .defaults)
+        try await render(menu(.light), name: "flush-result", output: output)
+        model.flushFlow.dismiss()
         model.stopFlow.requestStop(SampleServers.vite)
         try await render(menu(.light), name: "stop-confirmation", output: output)
         model.stopFlow.dismiss(SampleServers.vite)

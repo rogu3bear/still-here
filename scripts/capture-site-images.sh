@@ -14,7 +14,7 @@ import shutil
 import struct
 sources = sorted(str(p) for p in Path('Sources/StillHereApp').rglob('*.swift')
                  if p.name not in {'StillHereApp.swift', 'Previews.swift'})
-subprocess.run(['swiftc', '-parse-as-library', '-default-isolation', 'MainActor',
+subprocess.run(['swiftc', '-swift-version', '6', '-parse-as-library', '-default-isolation', 'MainActor',
                 '-I', '.build/debug', '-module-cache-path', 'build/capture-module-cache',
                 '.build/debug/StillHereCore.o', *sources,
                 'scripts/capture-site-images.swift', '-o', 'build/stillhere-capture'], check=True)
