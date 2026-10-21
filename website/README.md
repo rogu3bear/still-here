@@ -94,6 +94,6 @@ Leptos source and hydration remain the same as the Worker preview. The export
 inventory is local evidence, not a cfctl authenticated reproduction receipt.
 
 The product is open source under GPL-3.0-only. Source and issues are at
-https://github.com/rogu3bear/stillhere. The original template MIT notice and
+https://github.com/rogu3bear/still-here. The original template MIT notice and
 Geist font license are retained; see `../NOTICE.md`. The installer area states that the
 first public installer is in preparation, pending signing and Apple notarization.

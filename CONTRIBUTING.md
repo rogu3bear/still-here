@@ -10,8 +10,8 @@ Use an Apple silicon Mac with macOS 26 or later and Xcode 26 or later
 (Swift 6.2 or later).
 
 ```sh
-git clone https://github.com/rogu3bear/stillhere.git
-cd stillhere
+git clone https://github.com/rogu3bear/still-here.git
+cd still-here
 python3 -B scripts/build.py swift build
 python3 -B scripts/build.py swift test
 scripts/bundle.sh --dev

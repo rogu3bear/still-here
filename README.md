@@ -3,7 +3,7 @@
 **Know what’s still running.** App: Still Here · command: `stillhere`.
 
 Open source under [GPLv3](LICENSE) (`GPL-3.0-only`).
-[Source and issues](https://github.com/rogu3bear/stillhere) ·
+[Source and issues](https://github.com/rogu3bear/still-here) ·
 [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) ·
 [Third-party notices](NOTICE.md).
 
@@ -325,8 +325,8 @@ lists those processes, but Stop is still never offered for them.
 Requires Xcode 26 or later (Swift 6.2 or later).
 
 ```sh
-git clone https://github.com/rogu3bear/stillhere.git
-cd stillhere
+git clone https://github.com/rogu3bear/still-here.git
+cd still-here
 python3 -B scripts/build.py swift build          # debug build
 python3 -B scripts/build.py swift test           # unit tests (fake lsof output, no live processes)
 python3 -B scripts/build.py swift run stillhere  # the CLI, from source
