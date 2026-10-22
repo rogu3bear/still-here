@@ -21,7 +21,8 @@ open "build/Still Here.app"
 
 The development bundle is signed ad hoc for local use. Building it does not
 install a global command, register a login item, or produce a notarized installer.
-The public installer remains in preparation.
+The signed, notarized public installer is available from
+[GitHub Releases](https://github.com/rogu3bear/still-here/releases/tag/v0.1.0).
 
 ## Choose the right part
 

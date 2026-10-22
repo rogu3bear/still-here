@@ -7,7 +7,7 @@ Open source under [GPLv3](LICENSE) (`GPL-3.0-only`).
 [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) ·
 [Third-party notices](NOTICE.md).
 
-The first planned public release is **v0.1.0**. Earlier `0.3.x` version numbers
+The first public release is **v0.1.0**. Earlier `0.3.x` version numbers
 were internal development versions. Existing history and artifacts are retained.
 
 Still Here finds the dev servers running on your Mac and traces each one to its
@@ -96,10 +96,10 @@ on first launch; the CLI can read the legacy ignore list before that launch.
 Update existing MCP configurations and hooks to invoke `stillhere`. Launch at
 login belongs to the new app identity; enable it from the new installed copy.
 
-The v0.1.0 public installer is still in preparation. The package workflow below
-describes the intended installation once the signed, notarized artifact is
-qualified and made available. You can use
-[Build from source](#build-from-source) today.
+Download the signed, Apple-notarized
+[v0.1.0 installer](https://github.com/rogu3bear/still-here/releases/download/v0.1.0/stillhere-0.1.0.pkg).
+The [release](https://github.com/rogu3bear/still-here/releases/tag/v0.1.0) includes
+its SHA-256 checksum. You can also [build from source](#build-from-source).
 
 Open `stillhere-<version>.pkg` and follow the installer. It installs
 `/Applications/Still Here.app` and links the command-line tool at
@@ -110,8 +110,8 @@ To upgrade, install the new package the same way. The command-line tool (and
 with it the hook and the MCP server) uses the new version at once; the menu
 keeps running the old one until you **Quit** it and open Still Here again.
 
-Until the package is notarized, Gatekeeper blocks it by default. See
-[Notarization](#notarization).
+The public installer includes its Apple notarization ticket and passes
+Gatekeeper. For packaging your own builds, see [Notarization](#notarization).
 
 ## Command line
 
