@@ -1,4 +1,4 @@
-use super::product::{CodeBlock, NativeScreen, VERSION};
+use super::product::{CodeBlock, NativeScreen, INSTALLER_URL, VERSION};
 use leptos::prelude::*;
 use leptos_meta::Title;
 
@@ -57,7 +57,7 @@ pub fn HomePage() -> impl IntoView {
         <section class="privacy-strip wrap section" aria-labelledby="privacy-title"><span class="privacy-symbol" aria-hidden="true">"◎"</span><div><p class="eyebrow">"LOCAL BY DESIGN"</p><h2 id="privacy-title">"Your machine. Your business."</h2><p>"The app stays on your Mac. No telemetry. No account. Network requests go only to your local servers."</p><a class="text-link" href="/privacy">"Read the privacy details →"</a></div></section>
         <section class="download-section" id="download" aria-labelledby="download-title"><div class="wrap download-grid">
             <div><p class="eyebrow">"THE FIRST PUBLIC VERSION"</p><h2 id="download-title">"Make yourself"<br/>"at home on localhost."</h2><p>"Still Here v" {VERSION} " for Apple silicon Macs running macOS 26 or later."</p></div>
-            <div class="download-card"><span class="release-label">"v" {VERSION}</span><h3>"Installer in preparation"</h3><p>"The first public installer is being prepared. It will be offered here once signing and Apple notarization are complete."</p><a class="button" href="/docs/getting-started">"Read the installation guide" <span aria-hidden="true">"↗"</span></a><a class="text-link" href="/docs/release">"What’s in v0.1.0 →"</a><p class="download-detail">"Menu bar app + CLI + MCP server"</p></div>
+            <div class="download-card"><span class="release-label">"v" {VERSION}</span><h3>"Download for Mac"</h3><p>"A signed installer, notarized by Apple. Install the menu bar app and the stillhere command in one package."</p><a class="button" href=INSTALLER_URL target="_self">"Download v0.1.0 (.pkg)" <span aria-hidden="true">"↓"</span></a><a class="text-link" href="/docs/getting-started">"Installation and first run →"</a><a class="text-link" href="/docs/release">"What’s in v0.1.0 →"</a><p class="download-detail">"Menu bar app + CLI + MCP server"</p></div>
         </div></section>
     }
 }

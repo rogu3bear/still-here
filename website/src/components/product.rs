@@ -1,6 +1,10 @@
 use leptos::prelude::*;
 
 pub const SOURCE_URL: &str = "https://github.com/rogu3bear/still-here";
+pub const INSTALLER_URL: &str =
+    "https://github.com/rogu3bear/still-here/releases/download/v0.1.0/stillhere-0.1.0.pkg";
+pub const CHECKSUM_URL: &str =
+    "https://github.com/rogu3bear/still-here/releases/download/v0.1.0/stillhere-0.1.0.pkg.sha256";
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
